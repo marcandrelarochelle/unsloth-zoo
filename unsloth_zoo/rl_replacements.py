@@ -459,7 +459,7 @@ def grpo_compute_loss(
     if loss_type == "cispo":
         clamped_ratios = torch.clamp(coef_1, max=epsilon_high).detach()
         loss_i = -clamped_ratios * advantages * new
-    elif loss_type in ["grpo", "bnpo", "dr_grpo", "dapo"]:
+    elif loss_type in ["grpo", "bnpo", "dr_grpo", "dapo", "luspo"]:
         coef_2 = torch.clamp(coef_1, 1 - epsilon_low, 1 + epsilon_high)
 
         if delta is not None:
@@ -470,19 +470,8 @@ def grpo_compute_loss(
         loss_2 = coef_2 * advantages
         loss_i = -torch.min(loss_1, loss_2)
     elif loss_type == "sapo":
-        if get_sapo_token_loss is None:
-            raise Exception(f"sapo is only available in TRL 0.26.0+")
-        loss_i = torch.empty_like(coef_1)
-        positive_advantages_mask = advantages.repeat([1, coef_1.shape[1]]) > 0
-        # With n_chunks some tensors may be empty; guard the indexing.
-        if coef_1[positive_advantages_mask].numel() != 0:
-            loss_i[positive_advantages_mask] = get_sapo_token_loss(
-                coef_1[positive_advantages_mask], sapo_temperature_pos
-            )
-        if coef_1[~positive_advantages_mask].numel() != 0:
-            loss_i[~positive_advantages_mask] = get_sapo_token_loss(
-                coef_1[~positive_advantages_mask], sapo_temperature_neg
-            )
+        temperatures = torch.where(advantages > 0, sapo_temperature_pos, sapo_temperature_neg)
+        loss_i = torch.sigmoid(temperatures * (coef_1 - 1)) * 4 / temperatures
         loss_i = -loss_i * advantages
     elif loss_type == "vespo":
         if get_gamma_weights is None:
@@ -520,21 +509,36 @@ def grpo_compute_loss(
     mask = mask.to(torch.float32)
     n_mask_per_reward = mask.sum(1)
 
-    # https://github.com/huggingface/trl/blob/e8b8499f1f8d76838155b515e414ee98f757d6d5/trl/trainer/grpo_trainer.py#L1624
-    if loss_type in ["grpo", "sapo"]:
-        loss = ((loss_i * mask).sum(-1) / mask.sum(-1).clamp(min=1.0)).mean()
-        loss = loss / current_gradient_accumulation_steps
-    elif loss_type == "bnpo":
-        loss = (loss_i * mask).sum() / mask.sum().clamp(min=1.0)
-        loss = loss / current_gradient_accumulation_steps
-    elif loss_type == "dr_grpo":
-        loss = (loss_i * mask).sum() / (loss_i.size(0) * max_completion_length)
-        loss = loss / current_gradient_accumulation_steps
-    elif loss_type in ["cispo", "dapo", "vespo"]:
-        normalizer = num_items_in_batch/ num_processes
-        loss = (loss_i * mask).sum() / normalizer
+    if self.use_multi_stage_loss:
+        stage_mask = self._create_mask_between_markers(completion_ids)
+        multi_stage_mask = [stage_mask, ~stage_mask]
     else:
-        raise ValueError(f"Unknown loss type: {loss_type}")
+        multi_stage_mask = [1.0]
+
+    for stage_mask in multi_stage_mask:
+        stage_loss = loss_i * stage_mask.to(torch.float32)
+
+        # https://github.com/huggingface/trl/blob/e8b8499f1f8d76838155b515e414ee98f757d6d5/trl/trainer/grpo_trainer.py#L1624
+        if loss_type in ["grpo", "sapo"]:
+            intermediate_loss = ((stage_loss * mask).sum(-1) / mask.sum(-1).clamp(min=1.0)).mean()
+            intermediate_loss = intermediate_loss / current_gradient_accumulation_steps
+        elif loss_type == "bnpo":
+            intermediate_loss = (stage_loss * mask).sum() / mask.sum().clamp(min=1.0)
+            intermediate_loss = intermediate_loss / current_gradient_accumulation_steps
+        elif loss_type == "dr_grpo":
+            intermediate_loss = (stage_loss * mask).sum() / (stage_loss.size(0) * max_completion_length)
+            intermediate_loss = intermediate_loss / current_gradient_accumulation_steps
+        elif loss_type in ["cispo", "dapo", "vespo"]:
+            normalizer = num_items_in_batch/ num_processes
+            intermediate_loss = (stage_loss * mask).sum() / normalizer
+        elif loss_type == "luspo":
+            intermediate_loss = (stage_loss * mask.sum(1, keepdim=True)).mean()
+            normalizer = current_gradient_accumulation_steps
+            intermediate_loss = intermediate_loss / normalizer
+        else:
+            raise ValueError(f"Unknown loss type: {loss_type}")
+        
+        loss += intermediate_loss
 
     # Folded metrics.
     def masked_batch_mean(x):
