@@ -519,6 +519,8 @@ def grpo_compute_loss(
     else:
         multi_stage_mask = [1.0]
 
+    loss = torch.tensor(0, dtype=loss_i.dtype, device=loss_i.device)
+
     for stage_mask in multi_stage_mask:
         stage_loss = loss_i * stage_mask.to(torch.float32)
 
