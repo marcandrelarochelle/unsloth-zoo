@@ -403,6 +403,8 @@ def grpo_compute_loss(
     vespo_lambda_neg = kwargs.get("vespo_lambda_neg", 2.0)
     get_off_policy_mask = kwargs.get("get_off_policy_mask", None)
     off_policy_mask_threshold  = kwargs.get("off_policy_mask_threshold", None)
+    use_multi_stage_loss  = kwargs.get("use_multi_stage_loss", None)
+    create_mask_between_markers = kwargs.get("create_mask_between_markers", None)
     input_ids = input_ids.unsqueeze(-1)
 
     if advantages.dim() == 1:
@@ -509,8 +511,8 @@ def grpo_compute_loss(
     mask = mask.to(torch.float32)
     n_mask_per_reward = mask.sum(1)
 
-    if self.use_multi_stage_loss:
-        stage_mask = self._create_mask_between_markers(completion_ids)
+    if use_multi_stage_loss:
+        stage_mask = create_mask_between_markers(completion_ids)
         multi_stage_mask = [stage_mask, ~stage_mask]
     else:
         multi_stage_mask = [1.0]
@@ -755,6 +757,8 @@ def grpo_accumulated_loss(
     kwargs["vespo_lambda_neg"] = trainer.args.vespo_lambda_neg if hasattr(trainer.args, "vespo_lambda_neg") else 2.0
     kwargs["get_off_policy_mask"] = trainer.get_off_policy_mask if hasattr(trainer, "get_off_policy_mask") else None
     kwargs["off_policy_mask_threshold"] = trainer.args.off_policy_mask_threshold  if hasattr(trainer.args, "off_policy_mask_threshold") else None
+    kwargs["use_multi_stage_loss"] = trainger.args.use_multi_stage_loss if hasattr(trainer.args, "use_multi_stage_loss") else None
+    kwargs["create_mask_between_markers"] = trainer.create_mask_between_markers if hasattr(trainer, "create_mask_between_markers") else None
     kwargs["use_vllm"] = trainer.use_vllm
     # Snap n_chunks to the closest divisor of bsz.
     factors = [i for i in range(1, bsz + 1) if bsz % i == 0]
