@@ -512,7 +512,7 @@ def grpo_compute_loss(
     n_mask_per_reward = mask.sum(1)
 
     if use_multi_stage_loss:
-        stage_mask = create_mask_between_markers(completion_ids)
+        stage_mask = create_mask_between_markers(new)
         multi_stage_mask = [stage_mask, ~stage_mask]
     else:
         multi_stage_mask = [1.0]
