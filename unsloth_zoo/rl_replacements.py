@@ -405,6 +405,8 @@ def grpo_compute_loss(
     off_policy_mask_threshold  = kwargs.get("off_policy_mask_threshold", None)
     use_multi_stage_loss  = kwargs.get("use_multi_stage_loss", None)
     create_mask_between_markers = kwargs.get("create_mask_between_markers", None)
+    start_stage_marker = kwargs.get("start_stage_marker", None)
+    end_stage_marker = kwargs.get("end_stage_marker", None)
     input_ids = input_ids.unsqueeze(-1)
 
     if advantages.dim() == 1:
@@ -512,7 +514,7 @@ def grpo_compute_loss(
     n_mask_per_reward = mask.sum(1)
 
     if use_multi_stage_loss:
-        stage_mask = create_mask_between_markers(new)
+        stage_mask = create_mask_between_markers(new, start_stage_marker, end_stage_marker)
         multi_stage_mask = [stage_mask, ~stage_mask]
     else:
         multi_stage_mask = [1.0]
@@ -759,6 +761,8 @@ def grpo_accumulated_loss(
     kwargs["off_policy_mask_threshold"] = trainer.args.off_policy_mask_threshold  if hasattr(trainer.args, "off_policy_mask_threshold") else None
     kwargs["use_multi_stage_loss"] = trainer.args.use_multi_stage_loss if hasattr(trainer.args, "use_multi_stage_loss") else None
     kwargs["create_mask_between_markers"] = trainer.create_mask_between_markers if hasattr(trainer, "create_mask_between_markers") else None
+    kwargs["start_stage_marker"] = trainer.args.start_stage_marker if hasattr(trainer.args, "start_stage_marker") else None
+    kwargs["end_stage_marker"] = trainer.args.end_stage_marker if hasattr(trainer.args, "end_stage_marker") else None
     kwargs["use_vllm"] = trainer.use_vllm
     # Snap n_chunks to the closest divisor of bsz.
     factors = [i for i in range(1, bsz + 1) if bsz % i == 0]
