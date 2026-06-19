@@ -757,7 +757,7 @@ def grpo_accumulated_loss(
     kwargs["vespo_lambda_neg"] = trainer.args.vespo_lambda_neg if hasattr(trainer.args, "vespo_lambda_neg") else 2.0
     kwargs["get_off_policy_mask"] = trainer.get_off_policy_mask if hasattr(trainer, "get_off_policy_mask") else None
     kwargs["off_policy_mask_threshold"] = trainer.args.off_policy_mask_threshold  if hasattr(trainer.args, "off_policy_mask_threshold") else None
-    kwargs["use_multi_stage_loss"] = trainger.args.use_multi_stage_loss if hasattr(trainer.args, "use_multi_stage_loss") else None
+    kwargs["use_multi_stage_loss"] = trainer.args.use_multi_stage_loss if hasattr(trainer.args, "use_multi_stage_loss") else None
     kwargs["create_mask_between_markers"] = trainer.create_mask_between_markers if hasattr(trainer, "create_mask_between_markers") else None
     kwargs["use_vllm"] = trainer.use_vllm
     # Snap n_chunks to the closest divisor of bsz.
