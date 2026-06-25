@@ -390,6 +390,7 @@ def grpo_compute_loss(
     importance_sampling_level = kwargs.get("importance_sampling_level", "token")
     num_items_in_batch = kwargs.get("num_items_in_batch", None)
     current_gradient_accumulation_steps = kwargs.get("current_gradient_accumulation_steps", 1)
+    steps_per_generation = kwargs.get("steps_per_generation", 1)
     num_processes = kwargs.get("num_processes", 1)
     use_vllm = kwargs.get("use_vllm", False)
     vllm_importance_sampling_cap = kwargs.get("vllm_importance_sampling_cap", 2.0)
@@ -535,7 +536,9 @@ def grpo_compute_loss(
             intermediate_loss = (stage_loss * mask).sum() / (stage_loss.size(0) * max_completion_length)
             intermediate_loss = intermediate_loss / current_gradient_accumulation_steps
         elif loss_type in ["cispo", "dapo", "vespo"]:
-            normalizer = num_items_in_batch/ num_processes
+            normalizer = num_items_in_batch / num_processes
+            #see: https://github.com/huggingface/trl/pull/6024/changes#diff-964e6fd373aa93037604064cb2b822d7f8e2735e33f791065acf2c4c3552d393
+            normalizer = normalizer * current_gradient_accumulation_steps / steps_per_generation
             intermediate_loss = (stage_loss * mask).sum() / normalizer
         elif loss_type == "luspo":
             intermediate_loss = (stage_loss * mask.sum(1, keepdim=True)).mean()
@@ -750,6 +753,7 @@ def grpo_accumulated_loss(
 
     # Pop from kwargs to avoid downstream issues.
     _ = kwargs.pop("sampling_per_token_logps", None)
+    kwargs["steps_per_generation"] = trainer.args.steps_per_generation if hasattr(trainer.args, steps_per_generation) else 1
     kwargs["vllm_importance_sampling_cap"] = trainer.vllm_importance_sampling_cap if sampling_per_token_logps is not None else None
     kwargs["get_sapo_token_loss"] = trainer.get_sapo_token_loss if hasattr(trainer, "get_sapo_token_loss") else None
     kwargs["sapo_temperature_pos"] = trainer.args.sapo_temperature_pos if hasattr(trainer.args, "sapo_temperature_pos") else None
