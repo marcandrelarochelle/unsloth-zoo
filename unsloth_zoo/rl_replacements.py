@@ -753,7 +753,7 @@ def grpo_accumulated_loss(
 
     # Pop from kwargs to avoid downstream issues.
     _ = kwargs.pop("sampling_per_token_logps", None)
-    kwargs["steps_per_generation"] = trainer.args.steps_per_generation if hasattr(trainer.args, steps_per_generation) else 1
+    kwargs["steps_per_generation"] = trainer.args.steps_per_generation if hasattr(trainer.args, "steps_per_generation") else 1
     kwargs["vllm_importance_sampling_cap"] = trainer.vllm_importance_sampling_cap if sampling_per_token_logps is not None else None
     kwargs["get_sapo_token_loss"] = trainer.get_sapo_token_loss if hasattr(trainer, "get_sapo_token_loss") else None
     kwargs["sapo_temperature_pos"] = trainer.args.sapo_temperature_pos if hasattr(trainer.args, "sapo_temperature_pos") else None
