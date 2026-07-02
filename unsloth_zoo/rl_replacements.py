@@ -813,6 +813,7 @@ def grpo_accumulated_loss(
     n_chunks = factors[min(np.searchsorted(factors, n_chunks), len(factors)-1)]
 
     if kwargs["vllm_importance_sampling_clip_max"] is None and kwargs["vllm_importance_sampling_cap"] is not None:
+        kwargs["vllm_importance_sampling_clip_min"] = 0
         kwargs["vllm_importance_sampling_clip_max"] = kwargs["vllm_importance_sampling_cap"]
 
     if not hasattr(trainer, '_autocast_dtype'):
