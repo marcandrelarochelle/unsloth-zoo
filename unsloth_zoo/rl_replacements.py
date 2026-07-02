@@ -519,7 +519,7 @@ def grpo_compute_loss(
             advantages=advantages,
             log_ratio_per_token=log_ratio,
             mask=mask,
-            importance_sampling_ratio=kwargs.get("importance_sampling_ratio"),
+            importance_sampling_ratio=importance_sampling_ratio,
             k_pos=vespo_k_pos,
             lambda_pos=vespo_lambda_pos,
             k_neg=vespo_k_neg,
