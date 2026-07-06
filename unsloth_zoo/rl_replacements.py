@@ -413,6 +413,8 @@ def grpo_compute_loss(
     end_stage_marker = kwargs.get("end_stage_marker", None)
     input_ids = input_ids.unsqueeze(-1)
 
+    importance_sampling_ratio = None
+
     if advantages.dim() == 1:
         advantages = advantages.unsqueeze(1)
 
