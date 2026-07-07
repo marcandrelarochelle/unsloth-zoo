@@ -429,8 +429,8 @@ def grpo_compute_loss(
 
     with torch.no_grad():
         if use_vllm and sampling_per_token_logps is not None:
-            # Filter out extra leading prompt tokens after left-padding input_ids.
-            importance_sampling_ratio = torch.exp((old * mask) - sampling_per_token_logps)
+            # Match TRL: aggregate log-ratios then exp (product), not sum of exp ratios.
+            importance_sampling_ratio = (old - sampling_per_token_logps) * mask
 
             if vllm_importance_sampling_mode in ["sequence_mask", "sequence_truncate"]:
                 importance_sampling_ratio = importance_sampling_ratio.sum(dim=-1, keepdim=True)
@@ -535,7 +535,8 @@ def grpo_compute_loss(
         loss_i = loss_i * off_policy_mask
 
     if use_vllm and sampling_per_token_logps is not None:
-        loss_i = loss_i * importance_sampling_ratio
+        if loss_type != "vespo":
+            loss_i = loss_i * importance_sampling_ratio
         # delta for the metric.
         with torch.no_grad():
             delta = torch.abs(old - sampling_per_token_logps)
@@ -790,10 +791,11 @@ def grpo_accumulated_loss(
     # Pop from kwargs to avoid downstream issues.
     _ = kwargs.pop("sampling_per_token_logps", None)
     kwargs["steps_per_generation"] = trainer.args.steps_per_generation if hasattr(trainer.args, "steps_per_generation") else 1
-    kwargs["vllm_importance_sampling_cap"] = trainer.args.vllm_importance_sampling_cap if hasattr(trainer.args, "vllm_importance_sampling_cap") is not None else None
-    kwargs["vllm_importance_sampling_mode"] = trainer.args.vllm_importance_sampling_mode if hasattr(trainer.args, "vllm_importance_sampling_mode") is not None else None
-    kwargs["vllm_importance_sampling_clip_min"] = trainer.args.vllm_importance_sampling_clip_min if hasattr(trainer.args, "vllm_importance_sampling_clip_min") is not None else None
-    kwargs["vllm_importance_sampling_clip_max"] = trainer.args.vllm_importance_sampling_clip_max if hasattr(trainer.args, "vllm_importance_sampling_clip_max") is not None else None
+    kwargs["vllm_importance_sampling_cap"] = getattr(trainer.args, "vllm_importance_sampling_cap", None)
+    # Older TRL lacks this arg; fall back to token_truncate (legacy clamp(max=cap) behavior).
+    kwargs["vllm_importance_sampling_mode"] = getattr(trainer.args, "vllm_importance_sampling_mode", None) or "token_truncate"
+    kwargs["vllm_importance_sampling_clip_min"] = getattr(trainer.args, "vllm_importance_sampling_clip_min", None)
+    kwargs["vllm_importance_sampling_clip_max"] = getattr(trainer.args, "vllm_importance_sampling_clip_max", None)
     kwargs["get_sapo_token_loss"] = trainer.get_sapo_token_loss if hasattr(trainer, "get_sapo_token_loss") else None
     kwargs["sapo_temperature_pos"] = trainer.args.sapo_temperature_pos if hasattr(trainer.args, "sapo_temperature_pos") else None
     kwargs["sapo_temperature_neg"] = trainer.args.sapo_temperature_neg if hasattr(trainer.args, "sapo_temperature_neg") else None
