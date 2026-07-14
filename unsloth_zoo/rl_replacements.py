@@ -435,6 +435,8 @@ def grpo_compute_loss(
             if vllm_importance_sampling_mode in ["sequence_mask", "sequence_truncate"]:
                 importance_sampling_ratio = importance_sampling_ratio.sum(dim=-1, keepdim=True)
 
+            importance_sampling_ratio = torch.exp(importance_sampling_ratio)
+
             if vllm_importance_sampling_mode in ["token_truncate", "sequence_truncate"]:
                 importance_sampling_ratio = torch.clamp(
                     importance_sampling_ratio, 
